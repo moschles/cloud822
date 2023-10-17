@@ -1,0 +1,7 @@
+replica:00:127.0.0.1:8177  
+replica:01:127.0.0.1:8179
+replica:02:127.0.0.1:8181
+client:F8E0-AB43:8
+client:8BB7-90C9:8  
+recess 2000
+timeout 30
