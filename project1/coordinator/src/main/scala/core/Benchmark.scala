@@ -70,7 +70,8 @@ class Benchmark(
     clients:List[(String,Int)], 
     replicas:List[(String,String,Int)] ,
     recess:Int,
-    timeout:Int, 
+    timeout:Int,
+    silent: Boolean,  
     ec: ExecutionContext   ) 
 {
     private val total = clients.length
@@ -117,7 +118,7 @@ class Benchmark(
         }
     }.toVector
 
-    // Need client threads
+    // Need client threads  .
     println(" client workers")
     assert( rttResults.size == total )
     assert( thruResults.size == total ) 
@@ -127,7 +128,7 @@ class Benchmark(
                 pipes(i),
                 rttResults(i),
                 thruResults(i),
-                recess,  128127*(i+1)  ) 
+                recess,  128127*(i+1), silent  ) 
         }
     }.toVector
 
@@ -219,7 +220,7 @@ class Benchmark(
 // CLIENT THREAD //////////////////// //
 sealed case class ClientWorker( UUID:String, count:Int, 
     pipe:Pipe, Qrtt:Queue[String], Qthruputm:Queue[Double], 
-    recess:Int, tidOffset:Int ) extends Thread("ClientWorker") 
+    recess:Int, tidOffset:Int, silent:Boolean ) extends Thread("ClientWorker") 
 {  
     val rng = new scala.util.Random
     private val Alphanumeric = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".getBytes
@@ -260,7 +261,7 @@ sealed case class ClientWorker( UUID:String, count:Int,
             val toc = System.nanoTime / 1.00e9d
             val rtt = toc-tic 
             Qrtt += { if (true)  (s"$c " + f"$rtt%.7f") else "NaN" }
-            println(hear.get) 
+            if( silent == false ) {println(hear.get)}  
         }
         Qthruputm += System.nanoTime / 1.00e9d
         pipe.command_upload("SIG_KILL", UUID, (-1) )

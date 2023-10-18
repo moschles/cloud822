@@ -143,13 +143,13 @@ class Coordinator( val ec: ExecutionContext, val globalTimeout:Int )
                     } else {
                         /*
                          A full quorum of replies returned from storage. 
-                         Resolve ambiguity of ACKs  using version number.
+                         Resolve ambiguity of ACKs  using version number .
                          Resolve ACK/ERR ambiguity using logical clocks. 
                         */
                         val countErrors = onlyintact.filter( _.ack.take(3) == "ERR" ).toList
                         if( countErrors.isEmpty ) {
                             // These are all ACKs.
-                            // Trust the replica holding the latest version of the requested key.
+                            // Trust the replica holding the latest version of the requested key .
                             courier( onlyintact.maxBy( _.version) ) 
                         }  else {
                             // Trust the replica whose logical clock is largest.

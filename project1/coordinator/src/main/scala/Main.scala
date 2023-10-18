@@ -20,7 +20,7 @@ import scala.io.Source
 import scala.concurrent.ExecutionContext
 import collection.mutable.Queue
 
-// Locals // 
+// Locals    // 
 import com.core.Coordinator
 import com.core.Benchmark
 
@@ -69,18 +69,27 @@ object Main extends App
       sys.exit(-1) 
     } } 
 
+  val silence:Boolean = parse_exists( "silent" , contentSettings ) 
   //.
 
-  val B = new Benchmark( clientblackbook , replicablackbook  , recess, timeout , extCONext ) 
+  val B = new Benchmark( clientblackbook , replicablackbook  , recess, timeout , silence, extCONext ) 
   B.time_trials( ) 
   B.store_results( ) 
 
   extCONext.shutdown_pool( )
 
+  // <-----------  END CONSTRUCTOR -------------------> // 
+
   // // Given a list of strings from a settings file, store.
   //  return the matching value for the setting, want 
   def parse_by(want:String,store:List[String]):String = {
     store.filter(  _ contains want  ).head.replace(want," ").trim()  
+  } 
+
+  // Given a list of strings from a settings file, store.
+  //  return whether it appears. 
+  def parse_exists(want:String,store:List[String]):Boolean = {
+    !(store.filter(  _ contains want  ).toList.isEmpty)
   } 
 
   // // // 
