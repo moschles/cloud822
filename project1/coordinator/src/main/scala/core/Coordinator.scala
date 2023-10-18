@@ -26,11 +26,10 @@ Expected responses from a quorum of replicas. serialized string. token delim = "
 	transactionID
 
 attribution  :
-    + https://stackoverflow.com/a/32175024
     + https://www.youtube.com/watch?v=Jo4ad1FR0Cs
  
 
-last mod: Sunday, October 15, 2023 8:17:20 PM
+last mod: Tuesday, October 17, 2023 8:01:23 PM
 
 */
 
@@ -57,7 +56,7 @@ sealed case class Quorum(fifoSize:Int)
 sealed class Replica ( var name:String , var IPaddr:String,  var port:Int )
  { } 
 
-sealed case class ResponseBundle( ack:String, 
+sealed case class ResponseBundle( ack:String,  replican:String,
     key:Int, value:String,version:Int, tamperUUID:String,
     logicalclock:Int,writetotal:Int,deletetotal:Int,
     clientUUID:String,transactionID:Int ) 
@@ -90,7 +89,7 @@ class Coordinator( val ec: ExecutionContext, val globalTimeout:Int )
         // status = storagesys.last_status 
         if( allResponses.isEmpty  ) {
             println("no response from any replica")
-            ""
+            "fail"
         }  else {
             val aRlist:List[String] = allResponses.toList
             if (debug) {   
@@ -100,41 +99,65 @@ class Coordinator( val ec: ExecutionContext, val globalTimeout:Int )
                 val nonserial = for( r <- aRlist ) yield { deSerialize(r) }
 
                 // only those that parsed
-                val onlysome = nonserial.filter(_.isDefined)
+                val onlysome = nonserial.filter(_.isDefined) 
 
                 // de-box them
-                val debox = for( elt<- onlysome) yield { elt.get }
+                val debox = for( elt<- onlysome ) yield { elt.get }
+                
+                // exclude network errors
+                val onlyintact = debox.filter( _.ack != "ERRC" ) 
 
-                val oasz = debox.toList.length 
+                val oisz = onlyintact.toList.length 
 
-                if( oasz == 0 ) {
+                if( oisz == 0 ) {
                     // We are done
-                    ""
+                    "fail"
                 } else {
-                    if( oasz < quorumSize ) {
+                    if( oisz < quorumSize ) {
                         /* This code block handles scenarios in which a quorum
                            of replies did not arrive from primary storage.
 
-                           We can still recover under the following conditions.
-                           all of which must be true.
+                           We can still recover under the following conditions
+                              all of which must be true.
 
                            1. The client wants to GET
 
                            2. One or more of the replicas had a tamperUUID on
-                            that <k,v> entry which matches the clientUUID that wants this data. 
+                            the <k,v> entry which matches the clientUUID that wants this data. 
                            */  
                         if( cmd.take(3) == "GET" ) {
                             // filter those entries that this client tampered with.
-                            val readOnWritesq = debox.filter(_.tamperUUID == clientUUID)
-
-
+                            val readOnWritesq = onlyintact.filter(_.tamperUUID == clientUUID)
+                            val readOnWrite = readOnWritesq.toList 
+                            if (readOnWrite.isEmpty) {
+                                // all entries were tampered by other clients.
+                                "fail"
+                            } else {
+                                courier( readOnWrite.maxBy( _.version )  ) 
+                            }
                         } else {
                             // no dice
-                            ""
+                            "fail"
                         }
                         
                     } else {
-                    
+                        /*
+                         A full quorum of replies returned from storage. 
+                         Resolve ambiguity of ACKs  using version number.
+                         Resolve ACK/ERR ambiguity using logical clocks. 
+                        */
+                        val countErrors = onlyintact.filter( _.ack.take(3) == "ERR" ).toList
+                        if( countErrors.isEmpty ) {
+                            // These are all ACKs.
+                            // Trust the replica holding the latest version of the requested key.
+                            courier( onlyintact.maxBy( _.version) ) 
+                        }  else {
+                            // Trust the replica whose logical clock is largest.
+                            //  this technique does not scale. See written report.
+                            courier( onlyintact.maxBy( _.logicalclock )  )
+                        }
+
+
                     }
                 }
             }
@@ -142,32 +165,52 @@ class Coordinator( val ec: ExecutionContext, val globalTimeout:Int )
         }
     } 
 
+    /*
+        Clients will only be exposed to an 
+            ACK , ERR
+            key
+            value
+            transactionID 
+    */
+    private def courier( rb:ResponseBundle ):String = {
+        rb.ack + "|" + rb.key.toString + "|" + rb.value + "|" + rb.transactionID.toString 
+    }
+
     // // 
     private def deSerialize( payload:String ):Option[ResponseBundle] = {
         try {
             val box = payload.split("\\|").toList.toVector
-            val rb = new ResponseBundle(  box(0),
-                box(1).toInt,box(2),box(3).toInt,box(4),box(5).toInt,
-                box(6).toInt,box(7).toInt,box(8),box(9).toInt )
+            val rb = new ResponseBundle(  box(0), // ACK or ERR string
+                box(1),  // replica name string
+                box(2).toInt,  // key Int
+                box(3), // value string
+                box(4).toInt,  // version number Int
+                box(5),  // tamperUUID  string
+                box(6).toInt,  // logical clock Int
+                box(7).toInt, // write total Int
+                box(8).toInt, // delete total Int
+                box(9),   // clientUUID string 
+                box(10).toInt ) // transactionID Int
             Some(rb) 
         } catch {
              case e:Exception => None
         }
     }
+
 } 
 
 
 /* ///////
 Communicate with the primary storage system. 
-Network connects concurrently with all remote replicas. 
+Coordinator connects asynchronously with all remote replicas. 
 Handling outbound commands and inbound responses.
 All replica responses are pooled into a threadsafe FIFO.
-Process terminates early when a quorum of reponses are received. 
+Process terminates early as soon as a quorum of reponses are received. 
 ///// */
 sealed class StorageCommunication ( val ec: ExecutionContext,  var replicas:List[Replica], val globalTimeout:Int )
 {
  //  globalTimeout is wait time on each replica. 
-  private val watcherTimeout: Double = 14.0 // Wait for quorum of replicas.
+  private val watcherTimeout: Double = 11.0 // Wait for quorum of replicas.
   private val FIFO = new ConcurrentLinkedQueue[String]( )
   private val promise:Promise[Int] = Promise[Int]( )
   private var status:Int = 1

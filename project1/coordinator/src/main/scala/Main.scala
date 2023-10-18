@@ -1,9 +1,11 @@
 /*
 Main for Coordinator. 
 
+Attribution : 
+  + https://stackoverflow.com/a/32175024
+
 last mod:  
 Monday, October 9, 2023 1:25:22 AM
-
 */
 
 package com
@@ -29,7 +31,7 @@ object Main extends App
 {
   // Threadpool at the highest level of the JVM. 
   implicit val extCONext = new ExecutionContext {
-    val threadPool = Executors.newFixedThreadPool( 64 );
+    val threadPool = Executors.newFixedThreadPool( 54 );
     override def reportFailure(cause: Throwable): Unit = {};
     override def execute(runnable: Runnable): Unit = threadPool.submit(runnable);
     def shutdown_pool() = threadPool.shutdown();

@@ -356,11 +356,10 @@ ACKG,ACKP,ACKD,ERRC,ERRP,ERRD,ERRG
 	clientUUID
 	transactionID
 */
+
+// This is a physical network error. The incoming command could not even be parsed. 
 private object ErrorMachine {
-
     def general_error_outbound(name:String, port:Int ):String = {
-        val pts = port.toString 
-        "ERRC|"+ name + "|-1|v|-1|0|-1|-1|-1|" + pts + "|" + pts
+        "ERRC|"+ name + "|-1|v|-1|0000-0000|-1|-1|-1|0000-0000|-1" 
     }
-
 } 
