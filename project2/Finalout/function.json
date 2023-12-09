@@ -1,0 +1,19 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "payload",
+      "type": "activityTrigger",
+      "direction": "in"
+    },
+    {
+      "name": "outputblob",
+      "type": "blob",
+      "dataType": "string",
+      "path": "books/testout.json",
+      "connection": "BlobStorageConnection",
+      "direction": "out"
+    }
+  ],
+  "disabled": false 
+}
